@@ -320,7 +320,7 @@ class Features(object):
                 features.append(hog_features)
 
 
-        print("feawtures:", len(features[0]))
+        #print("features:", len(features[0]))
         # Return list of feature vectors
         if len(features) == 1:
             return features[0]
@@ -412,8 +412,8 @@ class Classifier(object):
     #------------------------------------------------------------
     def SVC_HOGFeatures(self, _npredict=10, _img=None, _channel=0):
         #print("======== SVC_HOGFeatures() ========")
-        self.hog_channel = _channel
-        print("self.hog_channel:",self.hog_channel)
+        self.Feature.hog_channel = _channel
+        print("self.Feature.hog_channel:",self.Feature.hog_channel)
         self.Feature.extractFeaturesNorm(_cf=False, _hog=True, _singleImg=_img)
         if _img is None:
             self.train(_npredict)
@@ -422,8 +422,8 @@ class Classifier(object):
 
 
     #------------------------------------------------------------
-    # DEF SVC_HOGFeatures
-    # - SVM Classifier using HOG features
+    # DEF SVC_AllFeatures
+    # - SVM Classifier using ALL features
     #------------------------------------------------------------
     def SVC_AllFeatures(self, _npredict=10, _img=None):
         #print("======== SVC_AllFeatures() ========")
@@ -598,6 +598,7 @@ class Detector(object):
     # - extract features using hog sub-sampling and make predictions
     #------------------------------------------------------------
     def findCars(self, _img, _scale):
+        print("------------ findCars() -------------")
         self.image = _img
         draw_img = np.copy(self.image)
         self.image = self.image.astype(np.float32)/255
@@ -629,28 +630,37 @@ class Detector(object):
         nyblocks = (ch1.shape[0] // pix_per_cell)-1
         nfeat_per_block = orient*cell_per_block**2
         # 64 was the orginal sampling rate, with 8 cells and 8 pix per cell
-        window = 64
+        #window = 64
+        window = cell_per_block * pix_per_cell
+        print("window: ", window)
         nblocks_per_window = (window // pix_per_cell)-1
+        print("nblocks_per_window: ", nblocks_per_window)
         cells_per_step = 2  # Instead of overlap, define how many cells to step
         nxsteps = (nxblocks - nblocks_per_window) // cells_per_step
         nysteps = (nyblocks - nblocks_per_window) // cells_per_step
 
-        print("=========================================ch1:", ch1.shape)
+        print("ch1.shape:", ch1.shape)
         # Compute individual channel HOG features for the entire image
         hog1 = self.classifier.SVC_HOGFeatures(_img=ch1, _channel=0)
         hog2 = self.classifier.SVC_HOGFeatures(_img=ch2, _channel=1)
         hog3 = self.classifier.SVC_HOGFeatures(_img=ch3, _channel=2)
-        print('hog1:', hog1.shape)
+        print('hog1.shape:', hog1.shape)
+        print('hog2.shape:', hog2.shape)
+        print('hog3.shape:', hog3.shape)
         for xb in range(nxsteps):
             for yb in range(nysteps):
                 ypos = yb*cells_per_step
                 xpos = xb*cells_per_step
                 # Extract HOG for this patch
+                print("xpos: ", xpos, "xpos+nblocks_per_window: ", xpos+nblocks_per_window)
+                print("ypos: ", ypos, "ypos+nblocks_per_window: ", ypos+nblocks_per_window)
+
                 hog_feat1 = hog1[ypos:ypos+nblocks_per_window, xpos:xpos+nblocks_per_window].ravel()
                 hog_feat2 = hog2[ypos:ypos+nblocks_per_window, xpos:xpos+nblocks_per_window].ravel()
                 hog_feat3 = hog3[ypos:ypos+nblocks_per_window, xpos:xpos+nblocks_per_window].ravel()
+                print("len(hog_feat1): ", len(hog_feat1))
                 hog_features = np.hstack((hog_feat1, hog_feat2, hog_feat3))
-                print("len(hog_features):", len(hog_features))
+
                 xleft = xpos*pix_per_cell
                 ytop = ypos*pix_per_cell
 
@@ -664,14 +674,24 @@ class Detector(object):
                 # Get color features
                 #color_features = self.classifier.SVC_ColorFeatures(_img=subimg)
                 print("len(hog_features)", len(hog_features))
-                print("len(spatial_feature: ", len(spatial_features))
-                print("len(hist_feature: ", len(hist_features))
+                print("len(spatial_feature): ", len(spatial_features))
+                print("len(hist_feature): ", len(hist_features))
+                #len(hog_features) 84672
+                #len(spatial_feature:  3072
+                #len(hist_feature:  96
+
 
                 # Scale features and make a prediction
-                #test_features = X_scaler.transform(np.hstack((spatial_features, hist_features, hog_features)).reshape(1, -1))
-                #print("len_test_features:" , test_features)
+                all_features = np.hstack((spatial_features, hist_features, hog_features)).reshape(1, -1)
+                print("all_features.shape: ", all_features.shape)
+
+                X_scaler = StandardScaler().fit(all_features)
+                test_features = X_scaler.transform(all_features)
+                print("len_test_features:" , test_features)
                 #test_features = X_scaler.transform(np.hstack((shape_feat, hist_feat)).reshape(1, -1))
-                test_prediction = self.classifier.svc.predict(hog_features)
+                #test_prediction = self.classifier.svc.predict(hog_features)
+                test_prediction = self.classifier.svc.predict(test_features)
+                input("wait")
 
                 if test_prediction == 1:
                     xbox_left = np.int(xleft*scale)
@@ -806,6 +826,7 @@ if __name__ == "__main__":
     #DET.visualize()
 
     DET.setYSS((400, 656))
-    #DET.classifier.Feature.setHOGParams(_ppc=8, _cpb=2, _orient=9, _vis=False,
-    #                                    _chnl=1, _fv=True)
+    # set default HOGParams
+    # - later _chnl info will be updated when needed
+    DET.classifier.Feature.setHOGParams(_ppc=8, _cpb=8, _orient=9, _vis=False, _chnl=1, _fv=False)
     DET.findCars(image, _scale=1.5)
