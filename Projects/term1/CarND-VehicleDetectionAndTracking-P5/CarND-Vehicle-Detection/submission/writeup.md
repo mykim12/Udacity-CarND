@@ -22,7 +22,7 @@ The goals / steps of this project are the following:
 [image4a]: ./output_images/detectionWindows.png
 [image4b]: ./output_images/detectionWindows_2.png
 [image4c]: ./output_images/detectionWindows_3.png
-[image4]: ../examples/sliding_window.jpg
+[image4]: ./output_images/detection_findCars_1.png
 [image5]: ../examples/bboxes_and_heat.png
 [image6]: ../examples/labels_map.png
 [image7]: ../examples/output_bboxes.png
@@ -104,7 +104,7 @@ Here's the sample results showing before/after normalization.
 
 After obtaining features, I trained a linear SVM using color features first. Generic Classifier object is implemented in `Classifier` Class, which takes `Feature` Class object and `_testSize` for training/testing data distribution.
 ```python
-# around line 363
+# around line 391
 class Classifier(object):
     def __init__(self, _FT, _testSize=0.2):
         self.Feature = _FT
@@ -113,7 +113,7 @@ class Classifier(object):
 
 I trained the classifier first with color features. After setting feature parameters, simply calling `SVC_ColorFeatures()` function inside `Classifier()` did the job.
 ```python
-# line 440
+# line 807
 #------------------------------------------------------------
 # STEP 3. CLASSIFIER
 #------------------------------------------------------------
@@ -229,6 +229,7 @@ Test Accuracy of SVC =  0.99
 
 First, I started to use `slide_window()` function from the class. It is implemented inside `Detector()` Class.
 ```python
+# around line 481
 class Detector(object):
     def __init__(self, _classifier, _yss=[None, None],
                        _xywin=(96, 96), _xyoverlap=(0.5, 0.5)):
@@ -259,7 +260,7 @@ DET.findCars(image, _scale=1.5)
 
 #### 2. Show some examples of test images to demonstrate how your pipeline is working.  What did you do to optimize the performance of your classifier?
 
-Ultimately I searched on two scales using YCrCb 3-channel HOG features plus spatially binned color and histograms of color in the feature vector, which provided a nice result.  Here are some example images:
+I ended up using all the features(color features and hog feature) together to get the best result. Also, I could understand the StandardScaler() better during this step, and the transform() by the `X_scaler` is highly recommended to have a high performance. In contrast the results above (from window search), by normalizing it and tuning a bit of the sample sizes for training data, I was able to produce a nice result (see below).
 
 ![alt text][image4]
 ---
@@ -290,8 +291,8 @@ Here's an example result showing the heatmap from a series of frames of video, t
 
 ---
 
-###Discussion
+### Discussion
 
-####1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
+#### 1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
 
-Here I'll talk about the approach I took, what techniques I used, what worked and why, where the pipeline might fail and how I might improve it if I were going to pursue this project further.  
+One issue as already mentioned above, was about scaling (normalization). Without it, the performance was not good. Also, to make nice codes, I had to design really carefully to appropriately implement all sort of conditions for every different experiments. Even though the final results seem to be good, this framework can fail if car is occluded by other types of objects, resulting in having lack of enough features for prediction. Also, sliding window approach tends to be slower than other methods like detection using fully confolutional network. Another thing to note is that some hyper parameters, such as scale, makes the system vulnerable to be generalized enough for various spectrum of the object size. Bounding box proposals can be replaced with Selective Search which could also make the system more robust than sliding window fashion.
