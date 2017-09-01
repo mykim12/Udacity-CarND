@@ -22,20 +22,24 @@ The goals / steps of this project are the following:
 [image4a]: ./output_images/detectionWindows.png
 [image4b]: ./output_images/detectionWindows_2.png
 [image4c]: ./output_images/detectionWindows_3.png
-[image4]: ./output_images/detection_findCars_1.png
-[image5]: ../examples/bboxes_and_heat.png
-[image6]: ../examples/labels_map.png
-[image7]: ../examples/output_bboxes.png
+[image4d]: ./output_images/detection_findCars_1.png
+[image4e]: ./output_images/detection_findCars_1-2.png
+[image4f]: ./output_images/detection_findCars_3.png
+[image5a]: ./output_images/detection_heatMap_figure_2.png
+[image5b]: ./output_images/detection_heatMap_figure_Accumulate.png
 [video1]: ../project_video.mp4
 
 ## [Rubric](https://review.udacity.com/#!/rubrics/513/view) Points
-###Here I will consider the rubric points individually and describe how I addressed each point in my implementation.  
+### Here I will consider the rubric points individually and describe how I addressed each point in my implementation.  
 
 ---
 ### Writeup / README
 
 #### 1. Provide a Writeup / README that includes all the rubric points and how you addressed each one.  You can submit your writeup as markdown or pdf.
 
+ [Done!]
+
+---
 ### Histogram of Oriented Gradients (HOG)
 
 #### 1. Explain how (and identify where in your code) you extracted HOG features from the training images.
@@ -223,6 +227,7 @@ Test Accuracy of SVC =  0.99
 
 
 
+---
 ### Sliding Window Search
 
 #### 1. Describe how (and identify where in your code) you implemented a sliding window search.  How did you decide what scales to search and how much to overlap windows?
@@ -238,11 +243,7 @@ class Detector(object):
         self.xy_window = _xywin
         self.xy_overlap = _xyoverlap
 ```
-Also, when I tried running the detection without increasing the size of training data for the classifier, it **didn't produce any hot_windows** as results. Thus, I increased the size of training examples to **5000 each (car/non-car)**, and finally I was able to get some *hot_windows*. However, when I used `y_start_stop=[100, None]` as default, I got this result:
-
-![alt text][image4a]
-
-Well, since there is no cars on this image, it's obvious that there's not much of `hot_windows`, but it was strange that so many `hot_windows` were detected on the sky. So, I set `y_start_stop=[200, 660]` (*ystop for excluding car itself*), then I got this result:
+Also, when I tried running the detection without increasing the size of training data for the classifier, it **didn't produce any hot_windows** as results. Thus, I increased the size of training examples to **5000 each (car/non-car)**, and finally I was able to get some *hot_windows*. When I used `y_start_stop=[200, 660]` I got this result:
 
 ![alt text][image4b]
 
@@ -250,7 +251,7 @@ Now, I tried using another example where I can see some cars:
 
 ![alt text][image4c]
 
-Now, I think I got some `hot_window` for potential cars, but not perfect. So, I started to use *scale* factor in searching. In addition, I utilized `find_cars()` function and here is the result:
+Now, I think I got some `hot_window` for potential cars, but not great. So, I did some experiments and found a few bugs related to X_scaler, fixed it (details in the latter sections), and started to use *scale* factor in searching. In addition, I utilized `find_cars()` function.
 ```python
 DET.setYSS((400, 656))
 DET.findCars(image, _scale=1.5)
@@ -260,34 +261,77 @@ DET.findCars(image, _scale=1.5)
 
 #### 2. Show some examples of test images to demonstrate how your pipeline is working.  What did you do to optimize the performance of your classifier?
 
-I ended up using all the features(color features and hog feature) together to get the best result. Also, I could understand the StandardScaler() better during this step, and the transform() by the `X_scaler` is highly recommended to have a high performance. In contrast the results above (from window search), by normalizing it and tuning a bit of the sample sizes for training data, I was able to produce a nice result (see below).
+I ended up using all the features(color features and hog feature) together to get the best result. Also, I could understand the `StandardScaler()` better during this step, and the transform() by the `X_scaler` is highly recommended to have a high performance. In contrast the results above (from window search), by normalizing it and tuning a bit of the sample sizes for training data, I was able to produce a nice result (see below). One more thing to note here is the `scale` parameter of the window, which also affected the performance. Later, I extended codes to run detection with multiple scales;a sample result will be shown in the next section.
 
-![alt text][image4]
+![alt text][image4d]
+
+
+I've also did more experiment tuning ratio of positive/negative samples, training/testing ratio, also the random variety sets of training data, etc. I implemented optimization routine as follows:
+```python
+868     acc = 0.0
+869     # desired accuracy
+870     max_acc = 0.997
+871     while(acc < max_acc):
+872         # randomly generate training data with random numbers
+873         CLSF.Feature.data.load_data(_car_sample=randint(1000, 2800), _noncar_sample=randint(1000, 3800))
+874         acc = CLSF.SVC_AllFeatures(_npredict=-1)
+875         print("acc: ", acc)
+```
+
+And here's some intermideate procedures:
+```
+[Iter 3]
+Total 1205 cars and 3136 non-cars of size (64, 64, 3) and data type: float32 are collected from data directory ../data
+Using spatial binning of: (32, 32) and 32 histogram bins
+Feature vector length: 8460
+17.98 Seconds to train SVC...
+Test Accuracy of SVC =  0.987
+My SVC predicts:  [ 0.  1.  0. ...,  0.  0.  1.]
+For these -1 labels:  [ 0.  1.  0. ...,  0.  0.  1.]
+0.00865 Seconds to predict -1 labels with SVC
+
+[Iter 4]
+Total 2318 cars and 3552 non-cars of size (64, 64, 3) and data type: float32 are collected from data directory ../data
+Using spatial binning of: (32, 32) and 32 histogram bins
+Feature vector length: 8460
+15.39 Seconds to train SVC...
+Test Accuracy of SVC =  0.9932
+My SVC predicts:  [ 0.  0.  1. ...,  0.  0.  0.]
+For these -1 labels:  [ 0.  0.  1. ...,  0.  0.  0.]
+0.01149 Seconds to predict -1 labels with SVC
+```
+
+Duing the optimization, I also save the trained svc which produces relatively high accuracy with `acc_thr=0.9936`. Finally, I obtained the best model with **`accuracy=0.994`**, and here's the detection result on a test image with multiple scales `scales=[1.2, 1.5, 1.8]`.
+
+##### The best result with `scale=1.2`
+
+![alt text][image4e]
+
+##### The result with all scales (`[1.2, 1.5, 1.8]`)
+
+![alt text][image4f]
+
+
+
 ---
-
 ### Video Implementation
 
-####1. Provide a link to your final video output.  Your pipeline should perform reasonably well on the entire project video (somewhat wobbly or unstable bounding boxes are ok as long as you are identifying the vehicles most of the time with minimal false positives.)
+#### 1. Provide a link to your final video output.  Your pipeline should perform reasonably well on the entire project video (somewhat wobbly or unstable bounding boxes are ok as long as you are identifying the vehicles most of the time with minimal false positives.)
 Here's a [link to my video result](./project_video.mp4)
 
 
-####2. Describe how (and identify where in your code) you implemented some kind of filter for false positives and some method for combining overlapping bounding boxes.
+#### 2. Describe how (and identify where in your code) you implemented some kind of filter for false positives and some method for combining overlapping bounding boxes.
 
-I recorded the positions of positive detections in each frame of the video.  From the positive detections I created a heatmap and then thresholded that map to identify vehicle positions.  I then used `scipy.ndimage.measurements.label()` to identify individual blobs in the heatmap.  I then assumed each blob corresponded to a vehicle.  I constructed bounding boxes to cover the area of each blob detected.  
+I tried creating a heatmap of detections, and set threshold to filter out false positives as much as possible. At first, I just set threshold as a fixed value as `2`, and after I obtain a heatmap, I used `scipy.ndimage.measurements.label()` to identify individual blobs in the heatmap. Finally, I generated bounding boxes to cover the area of each blob detected.
+A sample result is shown below:
 
-Here's an example result showing the heatmap from a series of frames of video, the result of `scipy.ndimage.measurements.label()` and the bounding boxes then overlaid on the last frame of video:
-
-### Here are six frames and their corresponding heatmaps:
-
-![alt text][image5]
-
-### Here is the output of `scipy.ndimage.measurements.label()` on the integrated heatmap from all six frames:
-![alt text][image6]
-
-### Here the resulting bounding boxes are drawn onto the last frame in the series:
-![alt text][image7]
+![alt text][image5a]
 
 
+Then, for video detection, I accumulated heatmap for a short period of time (6 frames), to remove more false positives. The below shows a sample 6-frame heatmaps and detections.
+
+
+![alt text][image5b]
 
 ---
 
