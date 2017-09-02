@@ -687,7 +687,6 @@ class Detector(object):
         if scale != 1:
             imshape = ctrans_tosearch.shape
             ctrans_tosearch = cv2.resize(ctrans_tosearch, (np.int(imshape[1]/scale), np.int(imshape[0]/scale)))
-            print("ctrans_tosearch values: ", ctrans_tosearch[0][0])
 
         ch1 = ctrans_tosearch[:,:,0].copy()
         ch2 = ctrans_tosearch[:,:,1].copy()
@@ -754,7 +753,7 @@ class Detector(object):
                     boxes.append([(xbox_left, ytop_draw+ystart), (xbox_left+win_draw, ytop_draw+win_draw+ystart)])
                     cv2.rectangle(draw_img,(xbox_left, ytop_draw+ystart),(xbox_left+win_draw,ytop_draw+win_draw+ystart),(0,0,255),6)
 
-        print("num_positives: ", num_positives)
+#        print("num_positives: ", num_positives)
 #        plt.ion()
 #        plt.imshow(draw_img)
 #        input("showing sample detection result!")
@@ -802,6 +801,21 @@ class Detector(object):
             nonzerox = np.array(nonzero[1])
             # Define a bounding box based on min/max x and y
             bbox = ((np.min(nonzerox), np.min(nonzeroy)), (np.max(nonzerox), np.max(nonzeroy)))
+
+            # filter out obvious false positives using bbox ratio
+            bbox_w = np.max(nonzerox) - np.min(nonzerox)
+            bbox_h = np.max(nonzeroy) - np.min(nonzeroy)
+
+            area = bbox_w * bbox_h
+            ratio = float(bbox_h) / float(bbox_w)
+            if area < 3000: continue
+            if area > 70000: continue
+
+            if ratio < 0.3: continue
+            if ratio > 1.9: continue
+
+#            print("area: ", area, "ratio: ", ratio)
+            
             # Draw the box on the image
             cv2.rectangle(img, bbox[0], bbox[1], (0,0,255), 6)
         # Return the image
@@ -926,6 +940,10 @@ class Detector(object):
         # draw on all images
         for idx, img in enumerate(images):
             draw_img = self.draw_labeled_bboxes(np.copy(img), labels)
+#            plt.ion()
+#            plt.imshow(draw_img)
+#            plt.ioff()
+#            a = input("asdf")
             imgpath = "./%s/frame_%05d.jpg"%(_save, start_frame + idx)
             print("imgpath: ", imgpath)
             mpimg.imsave(imgpath, draw_img)
@@ -996,7 +1014,8 @@ if __name__ == "__main__":
     #CLSF.saveModel()
 
     # load the model from file
-    CLSF.loadModel('model_n2_acc_0.9936.p_BEST')
+    #CLSF.loadModel('../models/model_n2_acc_0.9930.p')
+    CLSF.loadModel('../models/model_n2_acc_0.9936.p_BEST')
 
 
     #------------------------------------------------------------
@@ -1046,19 +1065,27 @@ if __name__ == "__main__":
     # STEP 4.2. Video Implementation - Video Detection
     #------------------------------------------------------------
     videof = "project_video.mp4"
-    save_path = "vid_frames_5"
+    save_path = "vid_frames_6"
     vidcap = cv2.VideoCapture(videof)
     success = True
     #threshold = float(len(boxes_all) * 0.08)
-    threshold = 3
-    g_threshold = 18
+    threshold = 2
+    g_threshold = 12
     count = 1
     accumulate_no = 6
     accumulated_result = []
+    # 1029 - 1057
     while success:
         success, frame = vidcap.read()
         if not success:
             break
+
+#        if count > 1057:
+#            break
+#
+#        if count < 1027:
+#            count += 1
+#            continue
 
         print("[IDX: %d] Read a new frame: "%count)
         image = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
@@ -1071,25 +1098,11 @@ if __name__ == "__main__":
 
         if count % accumulate_no == 0:
             DET.heatMap_acc(count, accumulated_result, [threshold, g_threshold], _vis=False, _save=save_path)
+            #DET.heatMap_acc(count, accumulated_result, [threshold, g_threshold], _vis=False)
             accumulated_result = []
 
         count += 1
 
         
         
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

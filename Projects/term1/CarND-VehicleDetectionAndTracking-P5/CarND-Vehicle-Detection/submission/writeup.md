@@ -333,6 +333,21 @@ Then, for video detection, I accumulated heatmap for a short period of time (6 f
 
 ![alt text][image5b]
 
+As one of the last steps, I aslo tried to remove more false positives by filtering out bounding boxes whose ratio of hight and width is not quite right as a car object, also whose area is too small to be a car.
+
+```
+ 805             # filter out obvious false positives using bbox ratio
+ 806             bbox_w = np.max(nonzerox) - np.min(nonzerox)
+ 807             bbox_h = np.max(nonzeroy) - np.min(nonzeroy)
+ 808 
+ 809             area = bbox_w * bbox_h
+ 810             ratio = float(bbox_h) / float(bbox_w)
+ 811             if area < 3000: continue
+ 812 
+ 813             if ratio < 0.3: continue
+ 814             if ratio > 1.9: continue
+```
+
 ---
 
 ### Discussion
