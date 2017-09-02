@@ -28,13 +28,8 @@ The goals / steps of this project are the following:
 [image_model2]: ./images/model_LeNet.png "LeNet model architecture"
 [image_model3]: ./images/model_DeeperNet.png "DNet model architecture"
 
-[image1]: ./examples/placeholder.png "Model Visualization"
-[image2a]: ./examples/placeholder.png "Grayscaling"
-[image3]: ./examples/placeholder_small.png "Recovery Image"
-[image4]: ./examples/placeholder_small.png "Recovery Image"
-[image5]: ./examples/placeholder_small.png "Recovery Image"
-[image6]: ./examples/placeholder_small.png "Normal Image"
-[image7]: ./examples/placeholder_small.png "Flipped Image"
+[image_loss]: ./images/TrainResult_DeeperNet.png "DNet Training result with All dataset"
+
 
 ## Rubric Points
 ### Here I will consider the [rubric points](https://review.udacity.com/#!/rubrics/432/view) individually and describe how I addressed each point in my implementation.  
@@ -284,7 +279,34 @@ Model is saved to model_LeNet_all.h5!
 
 
 
-Then I tried using a deeper network with also `dropout` layers. Also, as my network architecture is a bit big, and increasing the value of `n_epoch` helped for improving performance. Also, I incorporated fit_generator() to batch data processing. The following shows a sample train run result.
+Then I tried using a deeper network with also `dropout` layers. Also, as my network architecture is a bit big, and increasing the value of `n_epoch` helped for improving performance. Also, I incorporated fit_generator() to batch data processing. The following shows a sample train run result, with fit_generator() where `batch_size=32`.
 
+```python
+Epoch 1/50
+711/711 [==============================] - 113s - loss: 0.0108      
+Epoch 2/50
+711/711 [==============================] - 111s - loss: 0.0092     
+Epoch 3/50
+711/711 [==============================] - 112s - loss: 0.0087     
+Epoch 4/50
+711/711 [==============================] - 111s - loss: 0.0084     
+Epoch 5/50
+711/711 [==============================] - 111s - loss: 0.0082     
+Epoch 6/50
+711/711 [==============================] - 111s - loss: 0.0080
+.
+.
+.
+711/711 [==============================] - 116s - loss: 0.0050     
+Epoch 49/50
+711/711 [==============================] - 116s - loss: 0.0051     
+Epoch 50/50
+711/711 [==============================] - 116s - loss: 0.0050     
+['loss']
+Now let's plot
 
+```
+And the following shows the loss plot.
+
+![alt text][image_loss]
 

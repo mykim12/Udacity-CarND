@@ -4,8 +4,10 @@ import h5py
 from keras.models import Sequential#, Model
 from keras.layers import Flatten, Dense, Lambda, Cropping2D, Dropout, Activation
 from keras.layers import Convolution2D
-from keras.layers.pooling import MaxPooling2D
+from keras.layers.pooling import MaxPooling2D, AveragePooling2D
 from keras.utils import plot_model
+
+import numpy as np
 
 
 class NetType(object):
@@ -26,6 +28,7 @@ class BCNet(object):
 
         #ch, row, col = 3, 80, 320   # Trimmed image format
         self.channel, self.height, self.width = 3, 160, 320 
+        self.batch_size = 32
 
 
     ##------------------------------
@@ -60,10 +63,19 @@ class BCNet(object):
     def train(self, _n_epoch=5):
         if self.bcd.fit_gen:
             # load data with fit_generator
-            self.bcd.fitGenerator()
-            self.history_object = self.model.fit_generator(self.bcd.train_generator, 
-                                                      steps_per_epoch = self.bcd.spe,
-                                       		      validation_data = self.bcd.validation_generator,
+
+            #self.bcd.fitGenerator()
+
+            train_generator = self.bcd.generator(self.bcd.train_samples, self.batch_size)
+            validation_generator = self.bcd.generator(self.bcd.validation_samples, self.batch_size)
+
+            spe = int(np.ceil(float(len(self.bcd.train_samples))/float(self.batch_size)))
+            print("len(train_samples): ", len(self.bcd.train_samples))
+            print("spe: ", spe)
+
+            self.history_object = self.model.fit_generator(train_generator, 
+                                                      steps_per_epoch = spe,
+                                       		      validation_data = None,
                                                       nb_val_samples = self.bcd.num_val_samples, 
                                                       nb_epoch=_n_epoch, verbose=1)
             # plot result
@@ -93,7 +105,7 @@ class BCNet(object):
         #             25 rows pixels from the bottom of the image,
         #             0 columns of pixels from the left of the image,
         #         and 0 columns of pixels from the right of the image
-        model.add(Cropping2D(cropping=((60, 25), (0, 0))))
+        self.model.add(Cropping2D(cropping=((60, 25), (0, 0))))
         
 
     ##------------------------------
@@ -129,18 +141,18 @@ class BCNet(object):
     # - a bit deeper net
     #-------------------------------
     def dNet(self):
-        self.model.add(Convolution2D(24, 5, 5, activation="relu"))
+        self.model.add(Convolution2D(32, 7, 7, activation="relu"))
         self.model.add(MaxPooling2D())
-        self.model.add(Convolution2D(12, 5, 5, activation="relu"))
+        self.model.add(Convolution2D(16, 5, 5, activation="relu"))
         self.model.add(MaxPooling2D())
-        self.model.add(Convolution2D(12, 5, 5, activation="relu"))
+        self.model.add(Convolution2D(16, 5, 5, activation="relu"))
         self.model.add(AveragePooling2D())
-        self.model.add(Convolution2D(12, 3, 3, activation="relu"))
+        self.model.add(Convolution2D(16, 3, 3, activation="relu"))
         self.model.add(MaxPooling2D())
         self.model.add(Flatten())
-        self.model.add(Dense(64, activation='relu'))
+        self.model.add(Dense(128, activation='relu'))
         self.model.add(Dropout(0.5))
-        self.model.add(Dense(32, activation='relu'))
+        self.model.add(Dense(64, activation='relu'))
         self.model.add(Dropout(0.5))
         self.model.add(Dense(1))
 
@@ -183,13 +195,14 @@ class BCNet(object):
         plt.ion()
         ### plot the training and validation loss for each epoch
         plt.plot(self.history_object.history['loss'])
-        plt.plot(self.history_object.history['val_loss'])
+#        plt.plot(self.history_object.history['val_loss'])
         plt.title('model mean squared error loss')
         plt.ylabel('mean squared error loss')
         plt.xlabel('epoch')
         plt.legend(['training set', 'validation set'], loc='upper right')
         plt.show()
-        a = input("DONE?")
+        plt.savefig('TrainResult_%s.png'%self.netType)
+        input("DONE?")
         plt.ioff()
 
 

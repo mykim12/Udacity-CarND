@@ -39,10 +39,10 @@ if __name__ == '__main__':
 
     ds = DataSet.ALL
     #ds = DataSet.PROVIDED
-    #nt = NetType.DNET
-    nt = NetType.LENET
-    n_epoch = 20
+    nt = NetType.DNET
+    #nt = NetType.LENET
+    n_epoch = 50
 
 
     # LET'S RUN!
-    run(ds, nt, n_epoch, _data_fitgen=False, _savef='model_LeNet_all_correct_noCrop.h5')
+    run(ds, nt, n_epoch, _data_fitgen=False, _savef='model_dNet_all_Crop_Augmented.h5')

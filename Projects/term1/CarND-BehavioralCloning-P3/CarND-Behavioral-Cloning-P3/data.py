@@ -20,8 +20,7 @@ class BCData(object):
         self.subset = _dataSet
         self.fit_gen = _fitgen
 
-        self.augmented = False
-        self.batch_sz = 32
+        self.augmented = True
 
         self.loadData()
 
@@ -75,14 +74,14 @@ class BCData(object):
     # DEF generator()
     # - data generator module
     #-------------------------------
-    def generator(self, _samples):
+    def generator(self, _samples, _batch_sz):
 #        print("Data Augmented?: ", self.augmented)
 
         num_samples = len(_samples)
         while 1:
             #shuffle(samples)
-            for offset in range(0, num_samples, self.batch_sz):
-                batch_samples = _samples[offset:offset+self.batch_sz]
+            for offset in range(0, num_samples, _batch_sz):
+                batch_samples = _samples[offset:offset+_batch_sz]
 
                 images = []
                 angles = []
