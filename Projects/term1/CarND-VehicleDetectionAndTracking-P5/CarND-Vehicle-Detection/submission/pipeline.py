@@ -14,7 +14,7 @@ from sklearn.model_selection import train_test_split
 from scipy.ndimage.measurements import label
 from random import shuffle, randint
 import pickle
-from scipy.ndimage.measurements import label
+from collections import deque
 
 class Data(object):
     def __init__(self, _dpath="../data"):
@@ -277,11 +277,29 @@ class Features(object):
     # - configure other feature parameters
     #   (for spatial and histogram features)
     #------------------------------------------------------------
-    def setFeatParams(self, _cspace='RGB', _ssize=(32, 32), _hist_bins=32, _hist_range=(0, 256)):
+    def setFeatParams(self, _cspace=['HSV', 'HSV', 'LUV'], _ssize=(32, 32), _hist_bins=32, _hist_range=(0, 256)):
         self.cspace = _cspace
         self.spatial_size = _ssize
         self.hist_bins = _hist_bins
         self.hist_range = _hist_range
+
+
+    #------------------------------------------------------------
+    # DEF convertImage()
+    # - convert Image from RGB to _cspace
+    #------------------------------------------------------------
+    def convertImage(self, _image, _cspace):
+        if _cspace == 'HSV':
+            return cv2.cvtColor(_image, cv2.COLOR_RGB2HSV)
+        elif _cspace == 'LUV':
+            return cv2.cvtColor(_image, cv2.COLOR_RGB2LUV)
+        elif _cspace == 'HLS':
+            return cv2.cvtColor(_image, cv2.COLOR_RGB2HLS)
+        elif _cspace == 'YUV':
+            return cv2.cvtColor(_image, cv2.COLOR_RGB2YUV)
+        elif _cspace == 'YCrCb':
+            return cv2.cvtColor(_image, cv2.COLOR_RGB2YCrCb)
+
 
     #------------------------------------------------------------
     # DEF extractFeatures
@@ -293,45 +311,64 @@ class Features(object):
         # Iterate through the list of images
         # Read in each one by one
         for item in imgs:
+            spatial_features = []
+            hist_features = []
+            hog_features = []
             if _imgbuf:
                 image = item
-                feature_image = np.copy(image)
+                if _cf:
+                    spa_feat_image = np.copy(image[0])
+                    col_feat_image = np.copy(image[1])
+                if _hog:
+                    hog_feat_image = np.copy(image)
+
             else:
                 image = mpimg.imread(item)
                 # apply color conversion if other than 'RGB'
-                if self.cspace != 'RGB':
-                    if self.cspace == 'HSV':
-                        feature_image = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
-                    elif self.cspace == 'LUV':
-                        feature_image = cv2.cvtColor(image, cv2.COLOR_RGB2LUV)
-                    elif self.cspace == 'HLS':
-                        feature_image = cv2.cvtColor(image, cv2.COLOR_RGB2HLS)
-                    elif self.cspace == 'YUV':
-                        feature_image = cv2.cvtColor(image, cv2.COLOR_RGB2YUV)
-                    elif self.cspace == 'YCrCb':
-                        feature_image = cv2.cvtColor(image, cv2.COLOR_RGB2YCrCb)
+#                if self.cspace != 'RGB':
+#                    if self.cspace == 'HSV':
+#                        feature_image = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
+#                    elif self.cspace == 'LUV':
+#                        feature_image = cv2.cvtColor(image, cv2.COLOR_RGB2LUV)
+#                    elif self.cspace == 'HLS':
+#                        feature_image = cv2.cvtColor(image, cv2.COLOR_RGB2HLS)
+#                    elif self.cspace == 'YUV':
+#                        feature_image = cv2.cvtColor(image, cv2.COLOR_RGB2YUV)
+#                    elif self.cspace == 'YCrCb':
+#                        feature_image = cv2.cvtColor(image, cv2.COLOR_RGB2YCrCb)
+#                else: feature_image = np.copy(image)
 
-                else: feature_image = np.copy(image)
+                # always accept image as RGB first, and convert accordingly
+                if _cf:
+                    spa_feat_image = self.convertImage(image, self.cspace[0])
+                    col_feat_image = self.convertImage(image, self.cspace[1])
+
+                if _hog:
+                    hog_feat_image = self.convertImage(image, self.cspace[2])
 
             if _cf:
                 # Apply bin_spatial() to get spatial color features
-                spatial_features = self.bin_spatial(feature_image, size=self.spatial_size)
+                spatial_features = self.bin_spatial(spa_feat_image, size=self.spatial_size)
                 # Apply color_hist() also with a color space option now
-                hist_features = self.color_hist(feature_image, nbins=self.hist_bins, bins_range=self.hist_range)
+                hist_features = self.color_hist(col_feat_image, nbins=self.hist_bins, bins_range=self.hist_range)
             if _hog:
                 # Get HOG features
                 if self.hog_channel == 'ALL':
-                    hog_features = []
-                    for channel in range(feature_image.shape[2]):
-                        hog_features.append(self.HOG(feature_image[:, :, channel]))
+                    for channel in range(hog_feat_image.shape[2]):
+                        hog_features.append(self.HOG(hog_feat_image[:, :, channel]))
 
                     hog_features = np.ravel(hog_features)
                 else:
-                    #hog_features = self.HOG(feature_image[:,:,self.hog_channel])
+                    #hog_features = self.HOG(hog_feat_image[:,:,self.hog_channel])
                     if _imgbuf:
-                        hog_features = self.HOG(feature_image)
+                        hog_features = self.HOG(hog_feat_image)
                     else:
-                        hog_features = self.HOG(feature_image[:, :, self.hog_channel])
+                        hog_features = self.HOG(hog_feat_image[:, :, self.hog_channel])
+
+
+#            print("len(spatial_features): ", len(spatial_features))     # 768
+#            print("len(hist_features): ", len(hist_features))           # 192
+#            print("len(hog_features): ", len(hog_features))             # 5800
 
 
             # Append the new feature vector to the features list
@@ -341,12 +378,14 @@ class Features(object):
                 features.append(np.concatenate((spatial_features, hist_features)))
             else:
                 features.append(hog_features)
+#            print("len(features): ", len(features[0]))  # 6840
 
 
-        #print("features:", len(features[0]))
         # Return list of feature vectors
         if len(features) == 1:
             return features[0]
+
+
         return features
 
 
@@ -474,7 +513,7 @@ class Classifier(object):
             self.Feature.scaled_X, y, test_size=self.tsize, random_state=rand_state)
 
         print('Using spatial binning of:',self.Feature.spatial_size,
-            'and', self.Feature.hist_bins,'histogram bins')
+            'and', self.Feature.hist_bins,'color histogram bins')
         print('Feature vector length:', len(X_train[0]))
 
         # Use a linear SVC
@@ -681,16 +720,33 @@ class Detector(object):
 
         ystart, ystop = self.y_start_stop
         img_tosearch = self.image[ystart:ystop,:,:]
+        
         ctrans_tosearch = self.convertColor(img_tosearch, conv='RGB2YCrCb')
+        hsv_img_tosearch = FEAT.convertImage(img_tosearch, 'HSV')
+        luv_img_tosearch = self.convertColor(img_tosearch, conv='RGB2LUV')
+
+        #ctrans_tosearch = img_tosearch
 
         num_positives = 0
         if scale != 1:
-            imshape = ctrans_tosearch.shape
+            imshape = img_tosearch.shape
             ctrans_tosearch = cv2.resize(ctrans_tosearch, (np.int(imshape[1]/scale), np.int(imshape[0]/scale)))
+            hsv_img_tosearch = cv2.resize(hsv_img_tosearch, (np.int(imshape[1]/scale), np.int(imshape[0]/scale)))
+            luv_img_tosearch = cv2.resize(luv_img_tosearch, (np.int(imshape[1]/scale), np.int(imshape[0]/scale)))
 
-        ch1 = ctrans_tosearch[:,:,0].copy()
-        ch2 = ctrans_tosearch[:,:,1].copy()
-        ch3 = ctrans_tosearch[:,:,2].copy()
+
+#        hog_img_tosearch = hsv_img_tosearch
+#        spa_img_tosearch = luv_img_tosearch
+#        col_img_tosearch = hsv_img_tosearch
+
+        hog_img_tosearch = ctrans_tosearch
+        spa_img_tosearch = ctrans_tosearch
+        col_img_tosearch = ctrans_tosearch
+
+
+        ch1 = hog_img_tosearch[:,:,0].copy()
+        ch2 = hog_img_tosearch[:,:,1].copy()
+        ch3 = hog_img_tosearch[:,:,2].copy()
 
         # Define blocks and steps as above
         nxblocks = (ch1.shape[1] // pix_per_cell)-1
@@ -709,6 +765,7 @@ class Detector(object):
         hog1 = self.classifier.SVC_HOGFeatures(_img=ch1, _channel=0)
         hog2 = self.classifier.SVC_HOGFeatures(_img=ch2, _channel=1)
         hog3 = self.classifier.SVC_HOGFeatures(_img=ch3, _channel=2)
+        predictions = []
         for xb in range(nxsteps):
             for yb in range(nysteps):
                 ypos = yb*cells_per_step
@@ -722,30 +779,37 @@ class Detector(object):
                 # Extract the image patch
                 xleft = xpos*pix_per_cell
                 ytop = ypos*pix_per_cell
-                subimg = cv2.resize(ctrans_tosearch[ytop:ytop+window, xleft:xleft+window], (64,64))
+                #subimg = cv2.resize(ctrans_tosearch[ytop:ytop+window, xleft:xleft+window], (64,64))
+                spa_subimg = cv2.resize(spa_img_tosearch[ytop:ytop+window, xleft:xleft+window], (64,64))
+                col_subimg = cv2.resize(col_img_tosearch[ytop:ytop+window, xleft:xleft+window], (64,64))
 
                 # Get color features
-                '''
-                spatial_features = FEAT.bin_spatial(subimg, size=spatial_size)
-                hist_features = FEAT.color_hist(subimg, nbins=hist_bins, bins_range=hist_range)
-                print("len(spatial_feature): ", len(spatial_features))
-                print("len(hist_feature): ", len(hist_features))
-                '''
-                color_features = self.classifier.SVC_ColorFeatures(_img=subimg)
+                #spatial_features = FEAT.bin_spatial(subimg, size=spatial_size)
+                #hist_features = FEAT.color_hist(subimg, nbins=hist_bins, bins_range=hist_range)
+                #print("len(spatial_feature): ", len(spatial_features))
+                #print("len(hist_feature): ", len(hist_features))
+                color_features = self.classifier.SVC_ColorFeatures(_img=(spa_subimg, col_subimg))
 
                 # Scale features and make a prediction
-#                all_features = np.hstack((spatial_features, hist_features, hog_features)).reshape(1, -1)
+                #all_features = np.hstack((spatial_features, hist_features, hog_features)).reshape(1, -1)
                 all_features = np.hstack((color_features, hog_features)).reshape(1, -1)
+                #all_features = np.concatenate((color_features, hog_features))
+
 
                 # scale
                 test_features = X_scaler.transform(all_features)
                 #test_features = X_scaler.transform(all_features2)
 
                 # predict
-                test_prediction = self.classifier.svc.predict(test_features)
+                #test_prediction = self.classifier.svc.predict(test_features)
+                # use decision function
+                test_prediction = self.classifier.svc.decision_function(test_features)
+                predictions.append(test_prediction)
+#                print("prediction: ", test_prediction)
 
                 # draw rectangle if predicted true (car)
-                if test_prediction == 1:
+                #if test_prediction == 1:
+                if test_prediction > 0.8:
                     num_positives += 1
                     xbox_left = np.int(xleft*scale)
                     ytop_draw = np.int(ytop*scale)
@@ -753,14 +817,18 @@ class Detector(object):
                     boxes.append([(xbox_left, ytop_draw+ystart), (xbox_left+win_draw, ytop_draw+win_draw+ystart)])
                     cv2.rectangle(draw_img,(xbox_left, ytop_draw+ystart),(xbox_left+win_draw,ytop_draw+win_draw+ystart),(0,0,255),6)
 
+
 #        print("num_positives: ", num_positives)
 #        plt.ion()
 #        plt.imshow(draw_img)
+##        plt.plot(predictions)
+#        plt.show()
 #        input("showing sample detection result!")
 #        plt.ioff()
 #        mpimg.imsave("./output_images/detection_findCars_2.png", draw_img)
 
         return boxes
+
 
 
     #------------------------------------------------------------
@@ -791,35 +859,38 @@ class Detector(object):
     #------------------------------------------------------------
     # DEF draw_labeled_bboxes
     #------------------------------------------------------------
-    def draw_labeled_bboxes(self, img, labels):
+    def draw_labeled_bboxes(self, _img, _labels):
         # Iterate through all detected cars
-        for car_number in range(1, labels[1]+1):
+        for car_number in range(1, _labels[1]+1):
+            print("car_number: ", car_number)
             # Find pixels with each car_number label value
-            nonzero = (labels[0] == car_number).nonzero()
+            nonzero = (_labels[0] == car_number).nonzero()
             # Identify x and y values of those pixels
             nonzeroy = np.array(nonzero[0])
             nonzerox = np.array(nonzero[1])
             # Define a bounding box based on min/max x and y
-            bbox = ((np.min(nonzerox), np.min(nonzeroy)), (np.max(nonzerox), np.max(nonzeroy)))
+            lbbox = ((np.min(nonzerox), np.min(nonzeroy)), (np.max(nonzerox), np.max(nonzeroy)))
+            print("lbbox: ", lbbox)
 
             # filter out obvious false positives using bbox ratio
-            bbox_w = np.max(nonzerox) - np.min(nonzerox)
-            bbox_h = np.max(nonzeroy) - np.min(nonzeroy)
+            lbbox_w = np.max(nonzerox) - np.min(nonzerox)
+            lbbox_h = np.max(nonzeroy) - np.min(nonzeroy)
 
-            area = bbox_w * bbox_h
-            ratio = float(bbox_h) / float(bbox_w)
+            area = lbbox_w * lbbox_h
+            ratio = float(lbbox_h) / float(lbbox_w)
+            print("area: ", area, "ratio: ", ratio)
             if area < 3000: continue
-            if area > 70000: continue
+            if area > 60000: continue
 
-            if ratio < 0.3: continue
+            if ratio < 0.47: continue
             if ratio > 1.9: continue
 
 #            print("area: ", area, "ratio: ", ratio)
             
             # Draw the box on the image
-            cv2.rectangle(img, bbox[0], bbox[1], (0,0,255), 6)
+            cv2.rectangle(_img, lbbox[0], lbbox[1], (0,0,255), 6)
         # Return the image
-        return img
+        return _img
 
 
 
@@ -880,23 +951,21 @@ class Detector(object):
     # DEF heatMap_acc
     # - draw some heatmaps (accumulated)
     #------------------------------------------------------------
-    def heatMap_acc(self, _gidx, _acc, _thr=[1, 3], _vis=False, _save='vid_frames'):
+    def heatMap_acc(self, _gidx, _acc, _history, _thr=1, _vis=False, _save='vid_frames', _fig=None, _ax=None):
         start_frame = _gidx - len(_acc) + 1
         print("start_frame: ", start_frame)
 
         images = []
         images_draw = []
         heatmaps = []
-        all_boxes = []
         for item in _acc:
             image, boxes = item
             images.append(image)
 
-            all_boxes += boxes
-
             heat = np.zeros_like(image[:,:,0]).astype(np.float)
             heat = self.add_heat(heat, boxes)
-            heat = self.apply_threshold(heat, _thr[0])
+
+            heat = self.apply_threshold(heat, _thr)
             heatmap = np.clip(heat, 0, 255)
 
             draw_image = np.copy(image)
@@ -904,50 +973,63 @@ class Detector(object):
 
             images_draw.append(d_img)
             heatmaps.append(heatmap)
+            heat = None
+            heatmap = None
 
+        # add heatmaps to history
+        _history += heatmaps
 
         if _vis:
             plt.ion()
-            #fig = plt.figure(figsize=(12,4))
-            fig, ax = plt.subplots(6, 2, figsize=(4, 9))
+            plt.show()
             for i in range(6):
-                ax[i][0].imshow(images_draw[i])
-                ax[i][0].set_xticklabels([])
-                ax[i][0].set_yticklabels([])
-                ax[i][0].set_title('Image %05d'%(start_frame + i))
+                _ax[i][0].imshow(images_draw[i])
+                _ax[i][0].set_xticklabels([])
+                _ax[i][0].set_yticklabels([])
+                _ax[i][0].set_title('Image %05d'%(start_frame + i))
 
-                ax[i][1].imshow(heatmaps[i], cmap='hot')
-                ax[i][1].set_xticklabels([])
-                ax[i][1].set_yticklabels([])
-                ax[i][1].set_title('Image %05d'%(start_frame + i))
+                _ax[i][1].imshow(heatmaps[i], cmap='hot')
+                _ax[i][1].set_xticklabels([])
+                _ax[i][1].set_yticklabels([])
+                _ax[i][1].set_title('Image %05d'%(start_frame + i))
 
-            fig.tight_layout()
+            _fig.tight_layout()
             plt.ioff()
             savefig("./output_images/detection_heatMap_figure_Acc_%05d.png"%start_frame, bbox_inches='tight')
 
             a = input("here")
 
 
+        print("get g_het...")
         # generate accumulated heatmap
         g_heat = np.zeros_like(_acc[0][0][:,:,0]).astype(np.float)
-        g_heat = self.add_heat(heat, all_boxes)
-        g_heat = self.apply_threshold(g_heat, _thr[1])
-        g_heatmap = np.clip(g_heat, 0, 255)
+#        g_heat = self.add_heat(g_heat, all_boxes)
+        for hm in _history:
+            g_heat += hm
+        g_heat /= float(len(_history))
+
+        g_heat_f = self.apply_threshold(g_heat, _thr)
+        g_heatmap = g_heat_f.copy()
+#        g_heatmap = np.clip(g_heat, 0, 255)
 
         # Find final boxes from heatmap using label function
         labels = label(g_heatmap)
 
         # draw on all images
-        for idx, img in enumerate(images):
-            draw_img = self.draw_labeled_bboxes(np.copy(img), labels)
-#            plt.ion()
-#            plt.imshow(draw_img)
-#            plt.ioff()
-#            a = input("asdf")
+        for idx, oimg in enumerate(images):
+            final_img = self.draw_labeled_bboxes(np.copy(oimg), labels)
+            #print(labels[1], "cars found.")
+            if _vis:
+                plt.ion()
+                _ax[idx][0].imshow(final_img)
+                plt.ioff()
+                a = input("after g_heatmap labeled")
+
             imgpath = "./%s/frame_%05d.jpg"%(_save, start_frame + idx)
             print("imgpath: ", imgpath)
-            mpimg.imsave(imgpath, draw_img)
+            mpimg.imsave(imgpath, final_img)
 
+        return _history
         
 
 
@@ -982,40 +1064,39 @@ if __name__ == "__main__":
     CLSF = Classifier(FEAT, _testSize=0.3, _modelFile="model2.p")
 
     # train with color features
-    #CLSF.Feature.setFeatParams(_cspace='RGB', _ssize=(32, 32),
-    CLSF.Feature.setFeatParams(_cspace='YCrCb', _ssize=(32, 32),
-                               _hist_bins=32, _hist_range=(0, 256))
+    #CLSF.Feature.setFeatParams(_cspace=['HSV', 'HSV', 'LUV'], _ssize=(16, 16),
+    CLSF.Feature.setFeatParams(_cspace=['YCrCb', 'YCrCb', 'YCrCb'], _ssize=(16, 16),
+                               _hist_bins=64, _hist_range=(0, 256))
     #CLSF.SVC_ColorFeatures(_npredict=100)
 
     # train with HOG features
-    #CLSF.Feature.setHOGParams(_ppc=8, _cpb=2, _orient=9, _vis=False, _chnl=0, _fv=True)
-    #CLSF.SVC_HOGFeatures(_npredict=100)
+#    CLSF.Feature.setHOGParams(_ppc=8, _cpb=2, _orient=10, _vis=False, _chnl='ALL', _fv=True)
+#    CLSF.SVC_HOGFeatures(_npredict=100)
 
     # train with all features (color & HOG)
-    CLSF.Feature.setHOGParams(_ppc=8, _cpb=2, _orient=9, _vis=False, _chnl='ALL', _fv=True)
+    CLSF.Feature.setHOGParams(_ppc=8, _cpb=2, _orient=10, _vis=False, _chnl='ALL', _fv=True)
 
-    acc = 0.0
-    # desired accuracy
-    max_acc = 0.997
-    acc_thr = 0.992
-    trial = 0
-#    while(acc < max_acc):
-#        trial += 1
-#        print("\n[ Iter %d ]"%trial)
-#        # randomly generate training data with random numbers
-#        CLSF.Feature.data.load_data(_car_sample=randint(800, 2800), _noncar_sample=randint(800, 3800))
-#        acc = CLSF.SVC_AllFeatures(_npredict=-1)
-#        if acc > acc_thr:
-#            CLSF.saveModel("model_n2_acc_%.4f.p"%acc)
-#
-#    a = input("aa")
+    TRAIN = False
+    if TRAIN:
+        acc = 0.0
+        max_acc = 0.994
+        acc_thr = 0.992
+        trial = 0
+        while(acc < max_acc):
+            trial += 1
+            print("\n[ Iter %d ]"%trial)
+            # randomly generate training data with random numbers
+            CLSF.Feature.data.load_data(_car_sample=randint(2000, 2800), _noncar_sample=randint(2000, 3800))
+            acc = CLSF.SVC_AllFeatures(_npredict=-1)
+            if acc > acc_thr:
+                CLSF.saveModel("model_n2_acc_%.4f.p"%acc)
 
-    # save model
-    #CLSF.saveModel()
+        a = input("aa")
 
-    # load the model from file
-    #CLSF.loadModel('../models/model_n2_acc_0.9930.p')
-    CLSF.loadModel('../models/model_n2_acc_0.9936.p_BEST')
+    else:
+        # load the model from file
+        #CLSF.loadModel('../models/model_n2_acc_0.9936.p_BEST')
+        CLSF.loadModel('../models/model_n3_acc_0.9947.p')
 
 
     #------------------------------------------------------------
@@ -1023,7 +1104,7 @@ if __name__ == "__main__":
     #------------------------------------------------------------
     DET = Detector(_classifier=CLSF, _yss=[200, 660])
     image = mpimg.imread('./test_images/test4.jpg')
-    DET.classifier.Feature.setHOGParams(_ppc=8, _cpb=2, _orient=9, _vis=False, _chnl='ALL', _fv=False)
+    DET.classifier.Feature.setHOGParams(_ppc=8, _cpb=2, _orient=10, _vis=False, _chnl='ALL', _fv=False)
     #DET.detect(image)
     #DET.visualize()
 
@@ -1034,7 +1115,7 @@ if __name__ == "__main__":
     DET.setYSS((400, 656))
     # set default HOGParams
     # - later _chnl info will be updated when needed
-    DET.classifier.Feature.setHOGParams(_ppc=8, _cpb=2, _orient=9, _vis=False, _chnl=1, _fv=False)
+    DET.classifier.Feature.setHOGParams(_ppc=8, _cpb=2, _orient=10, _vis=False, _chnl='ALL', _fv=False)
 #    boxes = DET.findCars(image, _scale=1.2)
 #    boxes1 = DET.findCars(image, _scale=1.5)
 #    boxes2 = DET.findCars(image, _scale=1.8)
@@ -1051,7 +1132,9 @@ if __name__ == "__main__":
     #------------------------------------------------------------
     # STEP 4.1. Video Implementation - HeatMap
     #------------------------------------------------------------
-    scales = [1.2]
+    scales = [0.5, 1.0, 1.5]
+    #scales = [1.0]
+
 #    boxes_all = []
 #    for s in scales:
 #        boxes = DET.findCars(image, _scale=s)
@@ -1064,40 +1147,35 @@ if __name__ == "__main__":
     #------------------------------------------------------------
     # STEP 4.2. Video Implementation - Video Detection
     #------------------------------------------------------------
-    videof = "project_video.mp4"
-    save_path = "vid_frames_6"
+    videof = "../project_video.mp4"
+    save_path = "../vid_frames_7"
     vidcap = cv2.VideoCapture(videof)
     success = True
-    #threshold = float(len(boxes_all) * 0.08)
     threshold = 2
-    g_threshold = 12
     count = 1
     accumulate_no = 6
     accumulated_result = []
-    # 1029 - 1057
+
+    history = deque(maxlen=30)
+    fig, ax = plt.subplots(6, 2, figsize=(4, 9))
+
     while success:
         success, frame = vidcap.read()
         if not success:
             break
 
-#        if count > 1057:
-#            break
-#
-#        if count < 1027:
-#            count += 1
-#            continue
-
         print("[IDX: %d] Read a new frame: "%count)
-        image = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        c_image = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
         boxes_all = []
         for s in scales:
-            boxes = DET.findCars(image, _scale=s)
+            boxes = DET.findCars(c_image, _scale=s)
             boxes_all += boxes
 
-        accumulated_result.append([image, boxes_all])
+        accumulated_result.append([c_image, boxes_all])
 
         if count % accumulate_no == 0:
-            DET.heatMap_acc(count, accumulated_result, [threshold, g_threshold], _vis=False, _save=save_path)
+            history = DET.heatMap_acc(count, accumulated_result, history, threshold, _vis=False, \
+                                      _save=save_path, _fig=fig, _ax=ax)
             #DET.heatMap_acc(count, accumulated_result, [threshold, g_threshold], _vis=False)
             accumulated_result = []
 

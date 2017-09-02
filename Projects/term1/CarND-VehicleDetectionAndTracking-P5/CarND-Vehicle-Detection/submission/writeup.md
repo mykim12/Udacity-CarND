@@ -355,3 +355,39 @@ As one of the last steps, I aslo tried to remove more false positives by filteri
 #### 1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
 
 One issue as already mentioned above, was about scaling (normalization). Without it, the performance was not good. Also, to make nice codes, I had to design really carefully to appropriately implement all sort of conditions for every different experiments. Even though the final results seem to be good, this framework can fail if car is occluded by other types of objects, resulting in having lack of enough features for prediction. Also, sliding window approach tends to be slower than other methods like detection using fully confolutional network. Another thing to note is that some hyper parameters, such as scale, makes the system vulnerable to be generalized enough for various spectrum of the object size. Bounding box proposals can be replaced with Selective Search which could also make the system more robust than sliding window fashion.
+
+
+#### 2. False positive handling
+
+I tried additional steps as following:
+1. using different color space for each feature (HSV for HOG and Color feature, and LUV for spatial binning). 
+2. Also changed parameters of feature processing according to the histogram.
+	* spatial bin size `(16, 16)` (from `(32, 32)`)
+	* color histogram bin size `64` (from `32`)
+	* histogram orientation bin: `10` (from `9`)
+3. use mlutiple scaling `[ 0.5, 1.0, 1.5 ]`.
+4. use decision_function for SVC instead of predict()
+	* set `threshold=0.8`
+	* 
+```python
+806                 test_prediction = self.classifier.svc.decision_function(test_features)
+807                 predictions.append(test_prediction)
+809 
+810                 # draw rectangle if predicted true (car)
+811                 #if test_prediction == 1:
+812                 if test_prediction > 0.8:
+```
+
+5. keep history queue for previous consecutive frames for a bit.
+
+```python
+1179     history = deque(maxlen=30)
+# in DET.heatMap_acc()
+983         # add heatmaps to history
+984         _history += heatmaps
+```
+
+#### 3. Two Bugs - The Real reason why it generated lots of false positives
+During experimenting the '*2.False positive handling*' above, I found a major bug which made my system *'looks like (but not actually)'* generating lots of false positive. The **false positives were filtered out correctly** by my codes, *however*, I had a bug where **I keep drawing the filtered out boxes** in some cases. Also, I found another bug, where **it's not correctly accumulating global heatmaps**. So, I fixed them all, and it looked a lot better.
+
+
