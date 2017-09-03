@@ -643,7 +643,7 @@ class Detector(object):
 
             #5) Predict
             prediction = self.classifier.svc.predict(test_features)
-            print("prediction: ", prediction)
+#            print("prediction: ", prediction)
 
             #6) If positive (prediction == 1) then save the window
             if prediction == 1:
@@ -809,7 +809,7 @@ class Detector(object):
 
                 # draw rectangle if predicted true (car)
                 #if test_prediction == 1:
-                if test_prediction > 0.8:
+                if test_prediction > 0.4:
                     num_positives += 1
                     xbox_left = np.int(xleft*scale)
                     ytop_draw = np.int(ytop*scale)
@@ -878,15 +878,12 @@ class Detector(object):
 
             area = lbbox_w * lbbox_h
             ratio = float(lbbox_h) / float(lbbox_w)
-            print("area: ", area, "ratio: ", ratio)
-            if area < 3000: continue
-            if area > 60000: continue
+            if area < 2000: continue
+            if area > 50000: continue
 
-            if ratio < 0.47: continue
+            if ratio < 0.3: continue
             if ratio > 1.9: continue
 
-#            print("area: ", area, "ratio: ", ratio)
-            
             # Draw the box on the image
             cv2.rectangle(_img, lbbox[0], lbbox[1], (0,0,255), 6)
         # Return the image
@@ -1132,8 +1129,8 @@ if __name__ == "__main__":
     #------------------------------------------------------------
     # STEP 4.1. Video Implementation - HeatMap
     #------------------------------------------------------------
-    scales = [0.5, 1.0, 1.5]
     #scales = [1.0]
+    scales = [0.5, 1.0, 1.5]
 
 #    boxes_all = []
 #    for s in scales:
@@ -1148,7 +1145,7 @@ if __name__ == "__main__":
     # STEP 4.2. Video Implementation - Video Detection
     #------------------------------------------------------------
     videof = "../project_video.mp4"
-    save_path = "../vid_frames_7"
+    save_path = "../vid_frames_8"
     vidcap = cv2.VideoCapture(videof)
     success = True
     threshold = 2
